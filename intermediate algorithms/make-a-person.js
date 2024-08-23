@@ -1,3 +1,5 @@
+// https://forum.freecodecamp.org/t/freecodecamp-challenge-guide-make-a-person/16020
+
 const Person = function(first, last) {
   let firstName = first;
   let lastName = last;

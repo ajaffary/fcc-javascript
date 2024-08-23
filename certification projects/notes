@@ -1,0 +1,225 @@
+  /* structure 
+      - changeDue == cidTotalAvail?
+        - result = open, cidCopy + rest of cid from current denomination onward
+          - slice cidCopy from currentIndex onward
+        - break out of loop
+      - changeDue > cidTotalAvail?
+        - return insufficient funds
+        - break out of loop
+  exit loop
+
+  if result.status == "OPEN"
+    updateCidChangeArray
+    - this condenses changeArray down to nonzero entries as required
+    - only need to do this once at the end
+
+  return result
+  */
+
+  /* 
+  - this structure makes sense because I can check the current
+  status of the variables before looping again
+  
+  - key is that every time changeDue and cidTotalAvail are updated,
+  we have to do a comparison before going further
+
+  - what happens if successful but changeDue < cidTotalAvail?
+    - changeDue will become 0
+    - cidTotalAvail is positive
+    - this can happen automatically after for loop iterates 
+      over last denomination
+    - it can happen before last denomination, and then keep going
+      through all iterations without updating variables further
+      - would like to terminate early
+      - in that case, insert an extra condition:
+        - if changeDue == 0 and cidTotalAvail > 0, break out of
+          loop
+  
+  */
+
+    /* 
+        - attempt to make change
+          - function will iterate until:
+            - availDenAmt == 0, or
+            - changeDue < current denomination unit size
+              - if either is already true, nothing will be updated
+              - loop will move ahead automatically
+              - this is faster than re-checking denomination from beginning every time
+              - can use denomination checker to determine size of loop to save a few steps 
+        - result = open, cidCopy
+        - update variables
+          - cidTotalAvail
+          - changeDue
+          - changeDueArray
+    */
+
+
+
+/*
+      - this is the bottleneck.  
+      - cid is given as an array that contains other arrays 0-8
+      - cid[0] is ["PENNY", xxx]
+      - cid[8] is ["ONE HUNDRED", xxx]
+      - I need to access cid[x][1] to get available denomination amount
+      - Problem:  I want to refer to "denomination" as its unit value rather than its array position
+        - this is to subtract from remaining change due (below)
+      - I can create an object that maps the denomination unit to its index x in cid so I can access cid[x][1]
+      - so I can start by specifying denomination value
+      - reference cid index by x = denominationIndex[unit]
+      - query cid[x][1]
+  */
+
+
+  /* 
+  Algorithm to Make Change
+
+  internal parameters:
+  - changeDue
+  - changeDueArray
+  - currentUnit
+  - currentIndex
+  - cidTotalLower
+  - availableDenAmt
+  - query
+  - currentChangeQuery
+  - reducedChangeDueArray
+  
+  Algorithm:
+
+  initialize:
+  - changeDue = current amount of change to make
+  - determine currentUnit
+    - this determines when changeDue < denomination unit
+  - determine currentIndex
+  - compute cidTotalLower
+        - this is total from currentUnit to lowest
+
+  ** begin loop **
+  
+  - compare changeDue vs. cidTotalLower
+    - if changeDue < cidTotalLower:
+      - run make change process:
+        - determine denomination
+        - query the cid to get availableDenAmt
+        - check changeDue < availableDenAmt
+          - and check that changeDue > currentUnit
+          - while true:
+            - make change:
+              - subtract the denomination unit from cid 
+              - subtract the denomination unit from changeDue
+              - add the denomination unit to cidCopy array
+      - when while loop terminates:
+        - move to next appropriate denomination unit
+          - recalculate getCurrentUnit(changeDue)
+        - recalculate updated {cidTotalLower} (change this name?)
+        - repeat above
+    - else process terminates when:
+      - 1) we cannot make exact change
+        - this is when current denomination is too big:
+          - changeDue < availableDenAmt (condition to make change with current denomination)
+            - e.g. changeDue = 10.01 < 20 = availableDenAmt in $20
+        - but changeDue is greater than both:
+          - current denomination
+            - changeDue > currentUnit
+          - _total of all smaller denominations_
+            - changeDue > cidTotalLower
+        - so we recalculate cidTotalAvail after each iteration:
+          - update initialValue of reduce to current index
+        - we check this condition at the beginning of each loop?
+        - this is similar to 3rd condition
+      - 2) we have made exact change
+        - changeDue == 0
+        - this is similar to second condition
+  ** end loop **
+
+    - else if changeDue == cidTotal:
+      - return result object with:
+        - status: "CLOSED"
+        - change: cid
+    - else:
+      - return result object with:
+        - status: "INSUFFICIENT_FUNDS"
+        - change: []      
+  */
+
+  /* 
+  logic issue:
+  - make one of three choices below
+  - choice is based on comparing changeDue vs. cidTotalAvail
+    - if changeDue < cidTotalAvail, then execute makeChange
+    - makeChange will change the values of:
+      - changeDue
+      - cidTotalAvail
+      - availableDenAmt
+  - so the choice needs to be made every time makeChange is executed
+  - how to loop this?
+    1) for loop
+      - go through every denomination by default
+      - perform check at the start of each iteration
+      - make choice at start of every iteration
+      - can easily break out of for loop by incrementing counter
+        beyond condition
+      - in this case, use index of cidCopy
+        - change denominationIndex to use indices as key?
+        - or create a new array of denominations
+    2) while loop
+      - logically this is what we're doing
+      - we only want to keep making change while main condition
+        is true:
+        - 1) while (changeDue < cidTotalAvail)
+      - when 1) is true, we then want to check:
+        - 2) availableDenAmt > 0 
+        - 3) changeDue > currentUnit
+        - one or both of conditions 2) and 3) will eventually fail
+        - this is written in functions below
+      - then condition 1) is checked again
+      - this will not work; condition 1) can always be true
+      - in fact we hope it is always true so that we can
+        try to make change
+        - if everything works out, then changeDue will be zero
+          whereas cidTotalAvail can be > 0
+        - we need another way to break out of while loop
+        - can implement some artificial condition
+        - this is no different than for loop and incrementing
+          counter beyond loop
+
+  */
+
+  /* 
+  three outcomes:
+  
+  1) changeDue < cidTotalAvail
+    - choose denomination
+      - condition to choose new denomination:
+      - current denomination amount == 0
+      OR
+      - changeDue < unit of denomination
+      - why use a condition to change?
+      - change automatically with for loop after making change
+      - otherwise result will be sent to one of two other outcomes
+    - attempt to make change
+
+  2) changeDue == cidTotalAvail
+    - return rest of cid exactly as is
+
+  3) changeDue > cidTotalAvail
+    - insufficient funds
+  */
+
+
+
+
+
+  /* another idea, not used here:
+  // convert cid to an Object
+  // use this to reduce drawer and make change?
+  // rather than mutate original cid
+  let cidObj = Object.fromEntries(cid);
+  // console.log(cidObj);
+
+  // https://stackoverflow.com/questions/38824349/how-to-convert-an-object-to-an-array-of-key-value-pairs-in-javascript
+  // change cidObj back to final cid array
+  // use this array in returned result object
+  let cidResult = Object.keys(cidObj).map((key) => [key, cidObj[key]]).toReversed();
+  // console.log(cidResult);
+  */
